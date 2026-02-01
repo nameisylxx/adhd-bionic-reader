@@ -171,6 +171,10 @@ textarea::placeholder {
   font-weight: 700;
 }
 
+.output .faded {
+  opacity: var(--fade-opacity, 0.5);
+}
+
 .copy-btn {
   display: block;
   margin: 24px auto 0;
