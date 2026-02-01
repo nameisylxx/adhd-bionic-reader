@@ -91,6 +91,35 @@ function App() {
   const [ignoreShort, setIgnoreShort] = useState(false)
   const [fontSize, setFontSize] = useState(18)
   const [lineHeight, setLineHeight] = useState(1.8)
+  const [fileName, setFileName] = useState('')
+
+  // 处理文件上传
+  function handleFileUpload(e) {
+    const file = e.target.files[0]
+    if (!file) return
+
+    // 检查文件类型
+    if (!file.name.endsWith('.txt')) {
+      alert('Please upload a .txt file')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      setText(event.target.result)
+      setFileName(file.name)
+    }
+    reader.onerror = () => {
+      alert('Failed to read file')
+    }
+    reader.readAsText(file)
+  }
+
+  // 清除文件和文本
+  function handleClear() {
+    setText('')
+    setFileName('')
+  }
 
   // 处理文本，使用改进的启发式算法
   function processText(input) {
@@ -219,11 +248,33 @@ function App() {
         </div>
       </div>
 
-      <textarea
-        placeholder="Paste your English text here..."
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-      />
+      <div className="input-section">
+        <div className="file-upload">
+          <label className="file-label">
+            <input
+              type="file"
+              accept=".txt"
+              onChange={handleFileUpload}
+              className="file-input"
+            />
+            Upload TXT File
+          </label>
+          {fileName && (
+            <span className="file-name">{fileName}</span>
+          )}
+          {text && (
+            <button className="clear-btn" onClick={handleClear}>
+              Clear
+            </button>
+          )}
+        </div>
+        
+        <textarea
+          placeholder="Paste your English text here or upload a .txt file..."
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+      </div>
 
       <div className="output-container">
         <h2>Reading Output</h2>
