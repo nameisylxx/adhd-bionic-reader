@@ -1,5 +1,15 @@
 import { useState } from 'react'
 import { Segment, useDefault } from 'segmentit'
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs'
+import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.mjs?url'
+
+// 设置 worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
+
+// 获取 pdfjs 实例
+function getPdfjs() {
+  return pdfjsLib
+}
 
 // 初始化中文分词器
 const segment = useDefault(new Segment())
@@ -148,27 +158,62 @@ function App() {
   const [lineHeight, setLineHeight] = useState(1.8)
   const [fadeOpacity, setFadeOpacity] = useState(0.5)
   const [fileName, setFileName] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+
+  // 从 PDF 提取文本
+  async function extractTextFromPDF(file) {
+    const pdfjs = await getPdfjs()
+    const arrayBuffer = await file.arrayBuffer()
+    const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise
+    
+    let fullText = ''
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i)
+      const textContent = await page.getTextContent()
+      const pageText = textContent.items.map(item => item.str).join(' ')
+      fullText += pageText + '\n\n'
+    }
+    return fullText.trim()
+  }
 
   // 处理文件上传
-  function handleFileUpload(e) {
+  async function handleFileUpload(e) {
     const file = e.target.files[0]
     if (!file) return
 
+    const fileName = file.name.toLowerCase()
+    
     // 检查文件类型
-    if (!file.name.endsWith('.txt')) {
-      alert('Please upload a .txt file')
+    if (!fileName.endsWith('.txt') && !fileName.endsWith('.pdf')) {
+      alert('Please upload a .txt or .pdf file')
       return
     }
 
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      setText(event.target.result)
-      setFileName(file.name)
+    setIsLoading(true)
+    setFileName(file.name)
+
+    try {
+      if (fileName.endsWith('.pdf')) {
+        // 处理 PDF 文件
+        const extractedText = await extractTextFromPDF(file)
+        setText(extractedText)
+      } else {
+        // 处理 TXT 文件（包装成 Promise 以正确处理异步）
+        const textContent = await new Promise((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = (event) => resolve(event.target.result)
+          reader.onerror = () => reject(new Error('Failed to read file'))
+          reader.readAsText(file)
+        })
+        setText(textContent)
+      }
+    } catch (err) {
+      console.error('File processing error:', err)
+      alert('Failed to process file: ' + err.message)
+      setFileName('')
+    } finally {
+      setIsLoading(false)
     }
-    reader.onerror = () => {
-      alert('Failed to read file')
-    }
-    reader.readAsText(file)
   }
 
   // 清除文件和文本
@@ -324,14 +369,15 @@ function App() {
 
       <div className="input-section">
         <div className="file-upload">
-          <label className="file-label">
+          <label className={`file-label ${isLoading ? 'loading' : ''}`}>
             <input
               type="file"
-              accept=".txt"
+              accept=".txt,.pdf"
               onChange={handleFileUpload}
               className="file-input"
+              disabled={isLoading}
             />
-            Upload TXT File
+            {isLoading ? 'Processing...' : 'Upload TXT / PDF'}
           </label>
           {fileName && (
             <span className="file-name">{fileName}</span>
@@ -344,9 +390,10 @@ function App() {
         </div>
         
         <textarea
-          placeholder="粘贴中文或英文文本，或上传 .txt 文件..."
+          placeholder="粘贴中文或英文文本，或上传 .txt / .pdf 文件..."
           value={text}
           onChange={(e) => setText(e.target.value)}
+          disabled={isLoading}
         />
       </div>
 
